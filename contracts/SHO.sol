@@ -43,7 +43,7 @@ contract SHO is Ownable {
 
     event RecoveredERC20(
         uint amount,
-        IERC20 depositToken
+        IERC20 token
     );
 
     constructor(address _shoOrganizer, address _depositReceiver, IERC20 _depositToken) {

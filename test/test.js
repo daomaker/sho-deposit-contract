@@ -20,7 +20,7 @@ describe("SHO", () => {
         [owner, depositReceiver, organizer, winner1, winner2, winner3, depositReceiver2, organizer2, hacker] 
             = await ethers.getSigners();
 
-        contract = await SHO.deploy(depositToken2.address, depositReceiver2.address, organizer2.address);
+        contract = await SHO.deploy(organizer2.address, depositReceiver2.address, depositToken2.address);
         await contract.deployed();
 
         const initialBalance = parseUnits(2000, 6);
@@ -53,7 +53,7 @@ describe("SHO", () => {
             signature2 = await web3.eth.sign(dataHash2, organizer.address);
 
             const dataHash3 = web3.utils.soliditySha3(winner2.address, shoId, amount.toString(), deadline, depositReceiver.address);
-            signature3 = await web3.eth.sign(dataHash3, organizer.address);;
+            signature3 = await web3.eth.sign(dataHash3, organizer.address);
         });
 
         it("Changing deposit token, deposit receiver and organizer - only owner", async() => {
@@ -63,9 +63,9 @@ describe("SHO", () => {
             await expect(contract.setShoOrganizer(organizer.address)).to.be.revertedWith("Ownable: caller is not the owner");
 
             contract = contract.connect(owner);
-            await contract.setDepositToken(depositToken.address);
-            await contract.setDepositReceiver(depositReceiver.address);
             await contract.setShoOrganizer(organizer.address);
+            await contract.setDepositReceiver(depositReceiver.address);
+            await contract.setDepositToken(depositToken.address);
         });
 
         it("Winner 1 tries to deposit - fails, not enough balance", async() => {
@@ -125,7 +125,7 @@ describe("SHO", () => {
 
             contract = contract.connect(owner);
             const ownerBalanceBefore = await depositToken.balanceOf(owner.address);
-            await contract.withdrawUnwantedDeposits();
+            await contract.recoverERC20(depositToken.address);
             const ownerBalanceAfter = await depositToken.balanceOf(owner.address);
             expect(ownerBalanceAfter).to.equal(ownerBalanceBefore.add(amount));
         })

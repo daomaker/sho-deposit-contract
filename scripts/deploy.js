@@ -1,10 +1,10 @@
 async function main() {
-    const depositToken = "";
-    const depositReceiver = "";
     const organizer = "";
+    const depositReceiver = "";
+    const depositToken = "";
 
     const SHO = await ethers.getContractFactory("SHO");
-    const sho = await SHO.deploy(depositToken, depositReceiver, organizer);
+    const sho = await SHO.deploy(organizer, depositReceiver, depositToken);
     await sho.deployed();
 
     console.log("SHO deployed to:", sho.address);

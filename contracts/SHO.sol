@@ -40,7 +40,7 @@ contract SHO is Ownable {
         address shoOrganizer
     );
 
-    event WithdrawnUnwantedDeposits(
+    event RecoveredERC20(
         uint amount,
         IERC20 depositToken
     );
@@ -56,20 +56,17 @@ contract SHO is Ownable {
     }
 
     function setShoOrganizer(address _shoOrganizer) external onlyOwner {
-        shoOrganizer = _shoOrganizer;
-
         emit ShoOrganizerChanged(shoOrganizer, _shoOrganizer);
+        shoOrganizer = _shoOrganizer;
     }
     function setDepositReceiver(address _depositReceiver) external onlyOwner {
-        depositReceiver = _depositReceiver;
-
         emit DepositReceiverChanged(depositReceiver, _depositReceiver);
+        depositReceiver = _depositReceiver;
     }
 
     function setDepositToken(IERC20 _depositToken) external onlyOwner {
-        depositToken = _depositToken;
-
         emit DepositTokenChanged(depositToken, _depositToken);
+        depositToken = _depositToken;
     }
 
     function deposit(
@@ -95,11 +92,10 @@ contract SHO is Ownable {
     }
 
     // in case someone tries to transfer the deposit token directly to this SC, the owner has the ability to withdraw it
-    // since deposit token is changeable, the owner can withdraw any ERC20 token
-    function withdrawUnwantedDeposits() external onlyOwner {
-        uint balance = depositToken.balanceOf(address(this));
-        depositToken.safeTransfer(msg.sender, balance);
+    function recoverERC20(IERC20 token) external onlyOwner {
+        uint balance = token.balanceOf(address(this));
+        token.safeTransfer(msg.sender, balance);
 
-        emit WithdrawnUnwantedDeposits(balance, depositToken);
+        emit RecoveredERC20(balance, token);
     }
 }

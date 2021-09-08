@@ -6,7 +6,7 @@ const parseUnits = (value, decimals = 18) => {
 }
 
 describe("SHO", () => {
-    let contract, depositToken, depositReceiver, organizer, winner1, winner2, winner3;
+    let contract, depositToken, depositReceiver, organizer, winner1, winner2, winner3, hacker;
     let depositToken2, depositReceiver2, organizer2;
     let shoId = "ABC1234567";
 
@@ -14,9 +14,11 @@ describe("SHO", () => {
         const SHO = await ethers.getContractFactory("SHO");
         const ERC20 = await ethers.getContractFactory('ERC20Mock');
 
-        depositToken = await ERC20.deploy("MOCK token", "MOCK", 6, parseUnits(6000, 6));
+        depositToken = await ERC20.deploy("MOCK token", "MOCK", 6, parseUnits(8000, 6));
         depositToken2 = await ERC20.deploy("MOCK token 2 ", "MOCK 2", 6, parseUnits(0, 6));
-        [depositReceiver, organizer, winner1, winner2, winner3, depositReceiver2, organizer2] = await ethers.getSigners();
+
+        [owner, depositReceiver, organizer, winner1, winner2, winner3, depositReceiver2, organizer2, hacker] 
+            = await ethers.getSigners();
 
         contract = await SHO.deploy(depositToken2.address, depositReceiver2.address, organizer2.address);
         await contract.deployed();
@@ -24,12 +26,15 @@ describe("SHO", () => {
         const initialBalance = parseUnits(2000, 6);
         await depositToken.transfer(winner2.address, initialBalance);
         await depositToken.transfer(winner3.address, initialBalance);
+        await depositToken.transfer(hacker.address, initialBalance);
 
         depositToken = depositToken.connect(winner1);
         await depositToken.approve(contract.address, initialBalance);
         depositToken = depositToken.connect(winner2);
         await depositToken.approve(contract.address, initialBalance);
         depositToken = depositToken.connect(winner3);
+        await depositToken.approve(contract.address, initialBalance);
+        depositToken = depositToken.connect(hacker);
         await depositToken.approve(contract.address, initialBalance);
     });
 
@@ -57,22 +62,22 @@ describe("SHO", () => {
             await expect(contract.setDepositReceiver(depositReceiver.address)).to.be.revertedWith("Ownable: caller is not the owner");
             await expect(contract.setShoOrganizer(organizer.address)).to.be.revertedWith("Ownable: caller is not the owner");
 
-            contract = contract.connect(depositReceiver);
+            contract = contract.connect(owner);
             await contract.setDepositToken(depositToken.address);
             await contract.setDepositReceiver(depositReceiver.address);
             await contract.setShoOrganizer(organizer.address);
         });
 
-        it("Winner 1 tries to send the deposit TX - fails, not enough balance", async() => {
+        it("Winner 1 tries to deposit - fails, not enough balance", async() => {
             contract = contract.connect(winner1);
             await expect(contract.deposit(signature1, shoId, amount, deadline, depositReceiver.address))
                 .to.be.revertedWith("ERC20: transfer amount exceeds balance");
                 
-            depositToken = depositToken.connect(depositReceiver);
+            depositToken = depositToken.connect(owner);
             await depositToken.transfer(winner1.address, parseUnits(2000, 6));
         });
 
-        it("Winner 1 sends the deposit TX", async() => {
+        it("Winner 1 deposits - succeeds", async() => {
             contract = contract.connect(winner1);
 
             const depositReceiverBalanceBefore = await depositToken.balanceOf(depositReceiver.address);
@@ -87,7 +92,7 @@ describe("SHO", () => {
             await expect(contract.deposit(signature1, shoId, amount, deadline, depositReceiver.address)).to.be.revertedWith("SHO: this wallet already made a deposit for this SHO");
         });
         
-        it("Winner 2 tries to deposit with wrong parameters", async() => {
+        it("Winner 2 tries to deposit with wrong parameters - fails", async() => {
             contract = contract.connect(winner2);
 
             await expect(contract.deposit(signature1, shoId, amount, deadline, depositReceiver.address))
@@ -104,7 +109,7 @@ describe("SHO", () => {
                 .to.be.revertedWith("SHO: invalid deposit receiver");
         });
 
-        it("Winner 2 sends the deposit TX after 6 hours", async() => {
+        it("Winner 2 deposits after 6 hours - succeeds", async() => {
             await time.increase(time.duration.hours('6'));
             contract = contract.connect(winner2);
 
@@ -114,7 +119,18 @@ describe("SHO", () => {
             expect(depositReceiverBalanceAfter).to.equal(depositReceiverBalanceBefore.add(amount));
         });
 
-        it("Winner 3 deposit after 14 hours fails - too late", async() => {
+        it("A hacker sends deposit directly to the SHO contract - the owner withdraws it", async() => {
+            depositToken = depositToken.connect(hacker);
+            await depositToken.transfer(contract.address, amount);
+
+            contract = contract.connect(owner);
+            const ownerBalanceBefore = await depositToken.balanceOf(owner.address);
+            await contract.withdrawUnwantedDeposits();
+            const ownerBalanceAfter = await depositToken.balanceOf(owner.address);
+            expect(ownerBalanceAfter).to.equal(ownerBalanceBefore.add(amount));
+        })
+
+        it("Winner 3 deposits 2 hours after the deadline - fails", async() => {
             await time.increase(time.duration.hours('8'));
             contract = contract.connect(winner3);
 

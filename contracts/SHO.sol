@@ -14,7 +14,7 @@ contract SHO is Ownable {
     address public depositReceiver;
     IERC20 public depositToken;
 
-    mapping(uint => mapping(address => bool)) public depositsForSho;
+    mapping(string => mapping(address => bool)) public depositsForSho;
 
     event ShoOrganizerChanged(
         address oldShoOrganizer,
@@ -33,7 +33,7 @@ contract SHO is Ownable {
     
     event Deposited(
         address winner,
-        uint indexed shoId,
+        string indexed shoId,
         uint amount,
         uint deadline,
         address depositReceiver,
@@ -69,7 +69,7 @@ contract SHO is Ownable {
 
     function deposit(
         bytes calldata signature, 
-        uint shoId, 
+        string calldata shoId, 
         uint amount, 
         uint deadline, 
         address _depositReceiver

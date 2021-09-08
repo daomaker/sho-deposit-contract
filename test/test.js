@@ -8,7 +8,7 @@ const parseUnits = (value, decimals = 18) => {
 describe("SHO", () => {
     let contract, depositToken, depositReceiver, organizer, winner1, winner2, winner3;
     let depositToken2, depositReceiver2, organizer2;
-    let shoId = 0;
+    let shoId = "ABC1234567";
 
     before(async() => {
         const SHO = await ethers.getContractFactory("SHO");
@@ -40,7 +40,6 @@ describe("SHO", () => {
             const currentTime = await time.latest();
             amount = parseUnits(500, 6);
             deadline = Number(currentTime) + Number(time.duration.hours('12'));
-            shoId++;
 
             const dataHash1 = web3.utils.soliditySha3(winner1.address, shoId, amount.toString(), deadline, depositReceiver.address);
             signature1 = await web3.eth.sign(dataHash1, organizer.address);
@@ -93,7 +92,7 @@ describe("SHO", () => {
 
             await expect(contract.deposit(signature1, shoId, amount, deadline, depositReceiver.address))
                 .to.be.revertedWith("SHO: signature verification failed");
-            await expect(contract.deposit(signature2, shoId + 1, amount, deadline, depositReceiver.address))
+            await expect(contract.deposit(signature2, shoId + "8", amount, deadline, depositReceiver.address))
                 .to.be.revertedWith("SHO: signature verification failed");
             await expect(contract.deposit(signature2, shoId, parseUnits(1, 6), deadline, depositReceiver.address))
                 .to.be.revertedWith("SHO: signature verification failed");

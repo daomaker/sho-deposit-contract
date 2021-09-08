@@ -37,7 +37,8 @@ contract SHO is Ownable {
         uint amount,
         uint deadline,
         address depositReceiver,
-        address shoOrganizer
+        address shoOrganizer,
+        IERC20 depositToken
     );
 
     event RecoveredERC20(
@@ -88,7 +89,7 @@ contract SHO is Ownable {
         depositsForSho[shoId][winner] = true;
         depositToken.safeTransferFrom(winner, _depositReceiver, amount);
 
-        emit Deposited(winner, shoId, amount, deadline, _depositReceiver, shoOrganizer);
+        emit Deposited(winner, shoId, amount, deadline, _depositReceiver, shoOrganizer, depositToken);
     }
 
     // in case someone tries to transfer the deposit token directly to this SC, the owner has the ability to withdraw it

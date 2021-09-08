@@ -3,10 +3,12 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 contract SHO is Ownable {
     using ECDSA for bytes32;
+    using SafeERC20 for IERC20;
 
     address public shoOrganizer;
     address public depositReceiver;
@@ -38,7 +40,7 @@ contract SHO is Ownable {
         address shoOrganizer
     );
 
-    constructor( address _shoOrganizer, address _depositReceiver, IERC20 _depositToken) {
+    constructor(address _shoOrganizer, address _depositReceiver, IERC20 _depositToken) {
         shoOrganizer = _shoOrganizer;
         depositReceiver = _depositReceiver;
         depositToken = _depositToken;
@@ -82,7 +84,7 @@ contract SHO is Ownable {
         require(dataHash.toEthSignedMessageHash().recover(signature) == shoOrganizer, "SHO: signature verification failed");
 
         depositsForSho[shoId][winner] = true;
-        depositToken.transferFrom(winner, _depositReceiver, amount);
+        depositToken.safeTransferFrom(winner, _depositReceiver, amount);
 
         emit Deposited(winner, shoId, amount, deadline, _depositReceiver, shoOrganizer);
     }

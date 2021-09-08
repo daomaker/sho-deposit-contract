@@ -56,12 +56,12 @@ describe("SHO", () => {
             contract = contract.connect(winner1);
             await expect(contract.setDepositToken(depositToken.address)).to.be.revertedWith("Ownable: caller is not the owner");
             await expect(contract.setDepositReceiver(depositReceiver.address)).to.be.revertedWith("Ownable: caller is not the owner");
-            await expect(contract.setOrganizer(organizer.address)).to.be.revertedWith("Ownable: caller is not the owner");
+            await expect(contract.setShoOrganizer(organizer.address)).to.be.revertedWith("Ownable: caller is not the owner");
 
             contract = contract.connect(depositReceiver);
             await contract.setDepositToken(depositToken.address);
             await contract.setDepositReceiver(depositReceiver.address);
-            await contract.setOrganizer(organizer.address);
+            await contract.setShoOrganizer(organizer.address);
         });
 
         it("Winner 1 tries to send the deposit TX - fails, not enough balance", async() => {
@@ -85,7 +85,7 @@ describe("SHO", () => {
         it("Winner 1 tries to deposit again - fails", async() => {
             contract = contract.connect(winner1);
 
-            await expect(contract.deposit(signature1, shoId, amount, deadline, depositReceiver.address)).to.be.revertedWith("SHO: deposited");
+            await expect(contract.deposit(signature1, shoId, amount, deadline, depositReceiver.address)).to.be.revertedWith("SHO: this wallet already made a deposit for this SHO");
         });
         
         it("Winner 2 tries to deposit with wrong parameters", async() => {
@@ -102,7 +102,7 @@ describe("SHO", () => {
             await expect(contract.deposit(signature2, shoId, amount, deadline + Number(time.duration.hours('12')), depositReceiver.address))
                 .to.be.revertedWith("SHO: signature verification failed");
             await expect(contract.deposit(signature2, shoId, amount, deadline, organizer.address))
-                .to.be.revertedWith("SHO: wrong deposit receiver");
+                .to.be.revertedWith("SHO: invalid deposit receiver");
         });
 
         it("Winner 2 sends the deposit TX after 6 hours", async() => {
@@ -119,7 +119,7 @@ describe("SHO", () => {
             await time.increase(time.duration.hours('8'));
             contract = contract.connect(winner3);
 
-            await expect(contract.deposit(signature3, shoId, amount, deadline, depositReceiver.address)).to.be.revertedWith("SHO: deadline");
+            await expect(contract.deposit(signature3, shoId, amount, deadline, depositReceiver.address)).to.be.revertedWith("SHO: the deadline for this SHO has passed");
         });
     });
 });

@@ -8,15 +8,20 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 contract SHO is Ownable {
     using ECDSA for bytes32;
 
-    IERC20 public depositToken;
-    address public depositReceiver;
     address public shoOrganizer;
+    address public depositReceiver;
+    IERC20 public depositToken;
 
     mapping(uint => mapping(address => bool)) public depositsForSho;
 
     event ShoOrganizerChanged(
-        address oldOrganier,
-        address newOrganizer
+        address oldShoOrganizer,
+        address newShoOrganizer
+    );
+
+    event DepositReceiverChanged(
+        address oldDepositReceiver,
+        address newDepositReceiver
     );
 
     event DepositTokenChanged(
@@ -24,11 +29,6 @@ contract SHO is Ownable {
         IERC20 newDepositToken
     );
     
-    event DepositReceiverChanged(
-        address oldDepositReceiver,
-        address newDepositReceiver
-    );
-
     event Deposited(
         address winner,
         uint indexed shoId,
@@ -37,7 +37,7 @@ contract SHO is Ownable {
         address depositReceiver,
         address shoOrganizer
     );
-    
+
     constructor( address _shoOrganizer, address _depositReceiver, IERC20 _depositToken) {
         shoOrganizer = _shoOrganizer;
         depositReceiver = _depositReceiver;
@@ -45,22 +45,24 @@ contract SHO is Ownable {
 
         emit ShoOrganizerChanged(address(0), _shoOrganizer);
         emit DepositReceiverChanged(address(0), _depositReceiver);
-        emit DepositTokenChanged(address(0), _depositToken);
+        emit DepositTokenChanged(IERC20(address(0)), _depositToken);
     }
 
     function setShoOrganizer(address _shoOrganizer) external onlyOwner {
-        emit ShoOrganizerChanged(shoOrganizer, _shoOrganizer);
         shoOrganizer = _shoOrganizer;
-    }
 
+        emit ShoOrganizerChanged(shoOrganizer, _shoOrganizer);
+    }
     function setDepositReceiver(address _depositReceiver) external onlyOwner {
-        emit DepositReceiverChanged(depositReceiver, _depositReceiver);
         depositReceiver = _depositReceiver;
+
+        emit DepositReceiverChanged(depositReceiver, _depositReceiver);
     }
 
     function setDepositToken(IERC20 _depositToken) external onlyOwner {
-        emit DepositTokenChanged(depositToken, _depositToken);
         depositToken = _depositToken;
+
+        emit DepositTokenChanged(depositToken, _depositToken);
     }
 
     function deposit(
@@ -70,24 +72,18 @@ contract SHO is Ownable {
         uint deadline, 
         address _depositReceiver
     ) external {
+        address winner = msg.sender;
+
         require(_depositReceiver == depositReceiver, "SHO: invalid deposit receiver");
         require(!depositsForSho[shoId][winner], "SHO: this wallet already made a deposit for this SHO");
-        require(block.timestamp <= deadline, "SHO: too late to make a deposit for this SHO");
+        require(block.timestamp <= deadline, "SHO: the deadline for this SHO has passed");
 
         bytes32 dataHash = keccak256(abi.encodePacked(winner, shoId, amount, deadline, _depositReceiver));
-        address messageSigner = dataHash.toEthSignedMessageHash().recover(signature);
-        
-        if (messageSigner != shoOrganizer) {
-            emit InvalidSigner(messageSigner);
-        }
+        require(dataHash.toEthSignedMessageHash().recover(signature) == shoOrganizer, "SHO: signature verification failed");
 
-        require(messageSigner == shoOrganizer, "SHO: invalid message signer");
-
-        address winner = msg.sender;
         depositsForSho[shoId][winner] = true;
         depositToken.transferFrom(winner, _depositReceiver, amount);
 
         emit Deposited(winner, shoId, amount, deadline, _depositReceiver, shoOrganizer);
     }
-
 }

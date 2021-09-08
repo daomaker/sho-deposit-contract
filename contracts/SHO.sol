@@ -33,7 +33,7 @@ contract SHO is Ownable {
     
     event Deposited(
         address winner,
-        string indexed shoId,
+        string shoId,
         uint amount,
         uint deadline,
         address depositReceiver,

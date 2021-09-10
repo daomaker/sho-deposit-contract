@@ -6,6 +6,18 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
+/// @title Strong Holder Offering (SHO) contract used to collect funds from SHO lottery winners.
+/// @author DAO Maker
+/// @notice The flow is the following:
+/// 1. SHO Organizer runs the lottery off-chain.
+/// 2. Once the winners are selected, for every winner, the SHO Organzier signs a message cointaining the SHO information.
+///    The signing, as well as the signature storage, is done off-chain.
+/// 3. Winners call this contract passing in the signature and the relevant SHO data. By doing this they confirm their
+///    particiaption in the SHO (i.e. claim their winning spot) and transfer the funds required to participate.
+/// 4. The SHO contract verifies the signature, to make sure it comes from the SHO Organizer, and verifies the signed SHO data.
+///    If all is correct, the funds are transferred from the winner to the fund receiver.
+/// @dev The contract is owned by an admin (intended to be a multisig wallet) who can change critical state variables.
+/// SHO Organizer is a off-chain role.
 contract SHO is Ownable {
     using ECDSA for bytes32;
     using SafeERC20 for IERC20;
@@ -70,6 +82,17 @@ contract SHO is Ownable {
         depositToken = _depositToken;
     }
 
+    /// @notice Verifies that the passed SHO data is signed correctly and that the signature comes from the SHO Organizer.
+    /// If all checks out, the caller is marked in contract storage and funds are transferred from the caller to the predefined
+    /// fund receiver.
+    /// @dev Callable by any account. Security is based on the passed signature.
+    /// @param signature Signature from the SHO Organizer. The message signed contains the winner address and the other parameters
+    ///                  passed in the call.
+    /// @param shoId An opaque SHO identifier.
+    /// @param amount Amount of tokens the winner is allowed to send. The unit is the base unit of the `depositToken`
+    ///               (i.e. the smallest subdenomination of the token).
+    /// @param deadline Time until the winners have to call this function (in Unix time).
+    /// @param _depositReceiver Predefined wallet that receives the funds. Set in this contract by the admin.
     function deposit(
         bytes calldata signature, 
         string calldata shoId, 
@@ -92,7 +115,9 @@ contract SHO is Ownable {
         emit Deposited(winner, shoId, amount, deadline, _depositReceiver, shoOrganizer, depositToken);
     }
 
-    // in case someone tries to transfer the deposit token directly to this SC, the owner has the ability to withdraw it
+    /// @notice Recovers any tokens unintentionally sent to this contract. This contract is not meant to hold any funds.
+    /// @dev The admin can call this to recover any tokens sent mistakenly to this contract by users.
+    /// @param token ERC20 token address to be recovered.
     function recoverERC20(IERC20 token) external onlyOwner {
         uint balance = token.balanceOf(address(this));
         token.safeTransfer(msg.sender, balance);

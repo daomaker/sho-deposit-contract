@@ -24,7 +24,6 @@ contract SHO is Ownable {
 
     address public shoOrganizer;
     address public depositReceiver;
-    IERC20 public depositToken;
 
     mapping(string => mapping(address => bool)) public depositsForSho;
 
@@ -38,19 +37,14 @@ contract SHO is Ownable {
         address newDepositReceiver
     );
 
-    event DepositTokenChanged(
-        IERC20 oldDepositToken,
-        IERC20 newDepositToken
-    );
-    
     event Deposited(
         address winner,
         string shoId,
+        IERC20 depositToken,
         uint amount,
         uint deadline,
         address depositReceiver,
-        address shoOrganizer,
-        IERC20 depositToken
+        address shoOrganizer
     );
 
     event RecoveredERC20(
@@ -58,14 +52,12 @@ contract SHO is Ownable {
         IERC20 token
     );
 
-    constructor(address _shoOrganizer, address _depositReceiver, IERC20 _depositToken) {
+    constructor(address _shoOrganizer, address _depositReceiver) {
         shoOrganizer = _shoOrganizer;
         depositReceiver = _depositReceiver;
-        depositToken = _depositToken;
 
         emit ShoOrganizerChanged(address(0), _shoOrganizer);
         emit DepositReceiverChanged(address(0), _depositReceiver);
-        emit DepositTokenChanged(IERC20(address(0)), _depositToken);
     }
 
     function setShoOrganizer(address _shoOrganizer) external onlyOwner {
@@ -77,25 +69,23 @@ contract SHO is Ownable {
         depositReceiver = _depositReceiver;
     }
 
-    function setDepositToken(IERC20 _depositToken) external onlyOwner {
-        emit DepositTokenChanged(depositToken, _depositToken);
-        depositToken = _depositToken;
-    }
-
     /// @notice Verifies that the passed SHO data is signed correctly and that the signature comes from the SHO Organizer.
     /// If all checks out, the caller is marked in contract storage and funds are transferred from the caller to the predefined
     /// fund receiver.
     /// @dev Callable by any account. Security is based on the passed signature.
     /// @param signature Signature from the SHO Organizer. The message signed contains the winner address and the other parameters
-    ///                  passed in the call.
+    ///        passed in the call.
     /// @param shoId An opaque SHO identifier.
+    /// @param depositToken Address of an ERC20-compatible token used for deposits in this SHO. The winner must first set the token
+    ///        allowance of this contract for the `amount` or more.
     /// @param amount Amount of tokens the winner is allowed to send. The unit is the base unit of the `depositToken`
-    ///               (i.e. the smallest subdenomination of the token).
+    ///        (i.e. the smallest subdenomination of the token).
     /// @param deadline Time until the winners have to call this function (in Unix time).
     function deposit(
-        bytes calldata signature, 
-        string calldata shoId, 
-        uint amount, 
+        bytes calldata signature,
+        string calldata shoId,
+        IERC20 depositToken,
+        uint amount,
         uint deadline
     ) external {
         address winner = msg.sender;
@@ -103,13 +93,13 @@ contract SHO is Ownable {
         require(!depositsForSho[shoId][winner], "SHO: this wallet already made a deposit for this SHO");
         require(block.timestamp <= deadline, "SHO: the deadline for this SHO has passed");
 
-        bytes32 dataHash = keccak256(abi.encodePacked(winner, shoId, amount, deadline, depositReceiver));
+        bytes32 dataHash = keccak256(abi.encodePacked(winner, shoId, depositToken, amount, deadline, depositReceiver));
         require(dataHash.toEthSignedMessageHash().recover(signature) == shoOrganizer, "SHO: signature verification failed");
 
         depositsForSho[shoId][winner] = true;
         depositToken.safeTransferFrom(winner, depositReceiver, amount);
 
-        emit Deposited(winner, shoId, amount, deadline, depositReceiver, shoOrganizer, depositToken);
+        emit Deposited(winner, shoId, depositToken, amount, deadline, depositReceiver, shoOrganizer);
     }
 
     /// @notice Recovers any tokens unintentionally sent to this contract. This contract is not meant to hold any funds.

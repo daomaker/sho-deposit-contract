@@ -15,16 +15,17 @@ describe("SHO", () => {
         const ERC20 = await ethers.getContractFactory('ERC20Mock');
 
         depositToken = await ERC20.deploy("MOCK token", "MOCK", 6, parseUnits(8000, 6));
-        depositToken2 = await ERC20.deploy("MOCK token 2 ", "MOCK 2", 6, parseUnits(0, 6));
+        depositToken2 = await ERC20.deploy("MOCK token 2 ", "MOCK 2", 6, parseUnits(8000, 6));
 
         [owner, depositReceiver, organizer, winner1, winner2, winner3, depositReceiver2, organizer2, hacker] 
             = await ethers.getSigners();
 
-        contract = await SHO.deploy(organizer2.address, depositReceiver2.address, depositToken2.address);
+        contract = await SHO.deploy(organizer2.address, depositReceiver2.address);
         await contract.deployed();
 
         const initialBalance = parseUnits(2000, 6);
         await depositToken.transfer(winner2.address, initialBalance);
+        await depositToken2.transfer(winner2.address, initialBalance);
         await depositToken.transfer(winner3.address, initialBalance);
         await depositToken.transfer(hacker.address, initialBalance);
 
@@ -32,6 +33,8 @@ describe("SHO", () => {
         await depositToken.approve(contract.address, initialBalance);
         depositToken = depositToken.connect(winner2);
         await depositToken.approve(contract.address, initialBalance);
+        depositToken2 = depositToken2.connect(winner2);
+        await depositToken2.approve(contract.address, initialBalance);
         depositToken = depositToken.connect(winner3);
         await depositToken.approve(contract.address, initialBalance);
         depositToken = depositToken.connect(hacker);
@@ -46,31 +49,34 @@ describe("SHO", () => {
             amount = parseUnits(500, 6);
             deadline = Number(currentTime) + Number(time.duration.hours('12'));
 
-            const dataHash1 = web3.utils.soliditySha3(winner1.address, shoId, amount.toString(), deadline, depositReceiver.address);
+            const dataHash1 = web3.utils.soliditySha3(winner1.address, shoId, depositToken.address, amount.toString(), deadline, depositReceiver.address);
             signature1 = await web3.eth.sign(dataHash1, organizer.address);
 
-            const dataHash2 = web3.utils.soliditySha3(winner2.address, shoId, amount.toString(), deadline, depositReceiver.address);
+            const dataHash2 = web3.utils.soliditySha3(winner2.address, shoId, depositToken.address, amount.toString(), deadline, depositReceiver.address);
             signature2 = await web3.eth.sign(dataHash2, organizer.address);
 
-            const dataHash3 = web3.utils.soliditySha3(winner2.address, shoId, amount.toString(), deadline, depositReceiver.address);
+            signatureWrongShoOrganizer = await web3.eth.sign(dataHash2, winner2.address);
+
+            const dataHashWrongDepositReceiver = web3.utils.soliditySha3(winner2.address, shoId, depositToken.address, amount.toString(), deadline, winner2.address);
+            signatureWrongDepositReceiver = await web3.eth.sign(dataHashWrongDepositReceiver, organizer.address);
+
+            const dataHash3 = web3.utils.soliditySha3(winner3.address, shoId, depositToken.address, amount.toString(), deadline, depositReceiver.address);
             signature3 = await web3.eth.sign(dataHash3, organizer.address);
         });
 
         it("Changing deposit token, deposit receiver and organizer - only owner", async() => {
             contract = contract.connect(winner1);
-            await expect(contract.setDepositToken(depositToken.address)).to.be.revertedWith("Ownable: caller is not the owner");
             await expect(contract.setDepositReceiver(depositReceiver.address)).to.be.revertedWith("Ownable: caller is not the owner");
             await expect(contract.setShoOrganizer(organizer.address)).to.be.revertedWith("Ownable: caller is not the owner");
 
             contract = contract.connect(owner);
             await contract.setShoOrganizer(organizer.address);
             await contract.setDepositReceiver(depositReceiver.address);
-            await contract.setDepositToken(depositToken.address);
         });
 
         it("Winner 1 tries to deposit - fails, not enough balance", async() => {
             contract = contract.connect(winner1);
-            await expect(contract.deposit(signature1, shoId, amount, deadline, depositReceiver.address))
+            await expect(contract.deposit(signature1, shoId, depositToken.address, amount, deadline))
                 .to.be.revertedWith("ERC20: transfer amount exceeds balance");
                 
             depositToken = depositToken.connect(owner);
@@ -81,7 +87,7 @@ describe("SHO", () => {
             contract = contract.connect(winner1);
 
             const depositReceiverBalanceBefore = await depositToken.balanceOf(depositReceiver.address);
-            await contract.deposit(signature1, shoId, amount, deadline, depositReceiver.address);
+            await contract.deposit(signature1, shoId, depositToken.address, amount, deadline);
             const depositReceiverBalanceAfter = await depositToken.balanceOf(depositReceiver.address);
             expect(depositReceiverBalanceAfter).to.equal(depositReceiverBalanceBefore.add(amount));
         });
@@ -89,24 +95,28 @@ describe("SHO", () => {
         it("Winner 1 tries to deposit again - fails", async() => {
             contract = contract.connect(winner1);
 
-            await expect(contract.deposit(signature1, shoId, amount, deadline, depositReceiver.address)).to.be.revertedWith("SHO: this wallet already made a deposit for this SHO");
+            await expect(contract.deposit(signature1, shoId, depositToken.address, amount, deadline)).to.be.revertedWith("SHO: this wallet already made a deposit for this SHO");
         });
         
         it("Winner 2 tries to deposit with wrong parameters - fails", async() => {
             contract = contract.connect(winner2);
 
-            await expect(contract.deposit(signature1, shoId, amount, deadline, depositReceiver.address))
+            await expect(contract.deposit(signature1, shoId, depositToken.address, amount, deadline))
                 .to.be.revertedWith("SHO: signature verification failed");
-            await expect(contract.deposit(signature2, shoId + "8", amount, deadline, depositReceiver.address))
+            await expect(contract.deposit(signature2, shoId + "8", depositToken.address, amount, deadline))
                 .to.be.revertedWith("SHO: signature verification failed");
-            await expect(contract.deposit(signature2, shoId, parseUnits(1, 6), deadline, depositReceiver.address))
+            await expect(contract.deposit(signature2, shoId, depositToken2.address, amount, deadline))
                 .to.be.revertedWith("SHO: signature verification failed");
-            await expect(contract.deposit(signature2, shoId, parseUnits(1000, 6), deadline, depositReceiver.address))
+            await expect(contract.deposit(signature2, shoId, depositToken.address, parseUnits(1, 6), deadline))
                 .to.be.revertedWith("SHO: signature verification failed");
-            await expect(contract.deposit(signature2, shoId, amount, deadline + Number(time.duration.hours('12')), depositReceiver.address))
+            await expect(contract.deposit(signature2, shoId, depositToken.address, parseUnits(1000, 6), deadline))
                 .to.be.revertedWith("SHO: signature verification failed");
-            await expect(contract.deposit(signature2, shoId, amount, deadline, organizer.address))
-                .to.be.revertedWith("SHO: invalid deposit receiver");
+            await expect(contract.deposit(signature2, shoId, depositToken.address, amount, deadline + 1))
+                .to.be.revertedWith("SHO: signature verification failed");
+            await expect(contract.deposit(signatureWrongShoOrganizer, shoId, depositToken.address, amount, deadline))
+                .to.be.revertedWith("SHO: signature verification failed");
+            await expect(contract.deposit(signatureWrongDepositReceiver, shoId, depositToken.address, amount, deadline))
+                .to.be.revertedWith("SHO: signature verification failed");
         });
 
         it("Winner 2 deposits after 6 hours - succeeds", async() => {
@@ -114,7 +124,7 @@ describe("SHO", () => {
             contract = contract.connect(winner2);
 
             const depositReceiverBalanceBefore = await depositToken.balanceOf(depositReceiver.address);
-            await contract.deposit(signature2, shoId, amount, deadline, depositReceiver.address);
+            await contract.deposit(signature2, shoId, depositToken.address, amount, deadline);
             const depositReceiverBalanceAfter = await depositToken.balanceOf(depositReceiver.address);
             expect(depositReceiverBalanceAfter).to.equal(depositReceiverBalanceBefore.add(amount));
         });
@@ -134,7 +144,7 @@ describe("SHO", () => {
             await time.increase(time.duration.hours('8'));
             contract = contract.connect(winner3);
 
-            await expect(contract.deposit(signature3, shoId, amount, deadline, depositReceiver.address)).to.be.revertedWith("SHO: the deadline for this SHO has passed");
+            await expect(contract.deposit(signature3, shoId, depositToken.address, amount, deadline)).to.be.revertedWith("SHO: the deadline for this SHO has passed");
         });
     });
 });

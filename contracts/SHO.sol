@@ -92,27 +92,24 @@ contract SHO is Ownable {
     /// @param amount Amount of tokens the winner is allowed to send. The unit is the base unit of the `depositToken`
     ///               (i.e. the smallest subdenomination of the token).
     /// @param deadline Time until the winners have to call this function (in Unix time).
-    /// @param _depositReceiver Predefined wallet that receives the funds. Set in this contract by the admin.
     function deposit(
         bytes calldata signature, 
         string calldata shoId, 
         uint amount, 
-        uint deadline, 
-        address _depositReceiver
+        uint deadline
     ) external {
         address winner = msg.sender;
 
-        require(_depositReceiver == depositReceiver, "SHO: invalid deposit receiver");
         require(!depositsForSho[shoId][winner], "SHO: this wallet already made a deposit for this SHO");
         require(block.timestamp <= deadline, "SHO: the deadline for this SHO has passed");
 
-        bytes32 dataHash = keccak256(abi.encodePacked(winner, shoId, amount, deadline, _depositReceiver));
+        bytes32 dataHash = keccak256(abi.encodePacked(winner, shoId, amount, deadline, depositReceiver));
         require(dataHash.toEthSignedMessageHash().recover(signature) == shoOrganizer, "SHO: signature verification failed");
 
         depositsForSho[shoId][winner] = true;
-        depositToken.safeTransferFrom(winner, _depositReceiver, amount);
+        depositToken.safeTransferFrom(winner, depositReceiver, amount);
 
-        emit Deposited(winner, shoId, amount, deadline, _depositReceiver, shoOrganizer, depositToken);
+        emit Deposited(winner, shoId, amount, deadline, depositReceiver, shoOrganizer, depositToken);
     }
 
     /// @notice Recovers any tokens unintentionally sent to this contract. This contract is not meant to hold any funds.

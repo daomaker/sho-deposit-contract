@@ -1,13 +1,14 @@
 require('dotenv').config();
 require("@nomiclabs/hardhat-waffle");
 require("@nomiclabs/hardhat-web3");
+require("@nomiclabs/hardhat-etherscan");
 
 module.exports = {
     solidity: {
-        version: "0.8.4",
+        version: "0.8.7",
         settings: {
             optimizer: {
-                enabled: true,
+                enabled: false,
                 runs: 200
             }
         }
@@ -28,4 +29,7 @@ module.exports = {
             gasPrice: 1e9
         },
     },
+    etherscan: {
+        apiKey: process.env.ETHERSCAN_KEY
+    }
 };

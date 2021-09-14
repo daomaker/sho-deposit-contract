@@ -18,7 +18,6 @@ async function main() {
     console.log("Deadline:", deadline);
     console.log("Deposit receiver:", depositReceiver);
     console.log();
-    console.log("Message:", dataHash);
     console.log("Signature:", signature);
 }
 

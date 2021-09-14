@@ -6,9 +6,9 @@ async function main() {
     const sho = await SHO.deploy(shoOrganizer, depositReceiver);
     await sho.deployed();
 
+    console.log("SHO smart contract deployed at:", sho.address);
     console.log("shoOrganizer:", shoOrganizer);
     console.log("depositReceiver:", depositReceiver);
-    console.log("SHO smart contract deployed at:", sho.address);
 }
 
 main()

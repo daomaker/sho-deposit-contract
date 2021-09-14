@@ -38,12 +38,12 @@ contract SHO is Ownable {
     );
 
     event Deposited(
-        address winner,
-        string shoId,
+        address indexed winner,
+        bytes32 indexed shoId,
         IERC20 depositToken,
         uint amount,
         uint deadline,
-        address depositReceiver,
+        address indexed depositReceiver,
         address shoOrganizer
     );
 
@@ -90,6 +90,7 @@ contract SHO is Ownable {
     ) external {
         address winner = msg.sender;
 
+        require(bytes(shoId).length <= 32, "SHO: sho ID longer than 32 bytes");
         require(!depositsForSho[shoId][winner], "SHO: this wallet already made a deposit for this SHO");
         require(block.timestamp <= deadline, "SHO: the deadline for this SHO has passed");
 
@@ -99,7 +100,7 @@ contract SHO is Ownable {
         depositsForSho[shoId][winner] = true;
         depositToken.safeTransferFrom(winner, depositReceiver, amount);
 
-        emit Deposited(winner, shoId, depositToken, amount, deadline, depositReceiver, shoOrganizer);
+        emit Deposited(winner, bytes32(abi.encodePacked(shoId)), depositToken, amount, deadline, depositReceiver, shoOrganizer);
     }
 
     /// @notice Recovers any tokens unintentionally sent to this contract. This contract is not meant to hold any funds.

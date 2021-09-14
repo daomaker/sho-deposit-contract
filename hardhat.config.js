@@ -28,6 +28,14 @@ module.exports = {
             accounts: [`0x${process.env.DEPLOYER_PRIVATE_KEY}`],
             gasPrice: 1e9
         },
+        bsc_testnet: {
+            url: `https://data-seed-prebsc-1-s1.binance.org:8545/`,
+            accounts: [`0x${process.env.DEPLOYER_PRIVATE_KEY}`],
+        },
+        bsc: {
+            url: `https://bsc-dataseed.binance.org/`,
+            accounts: [`0x${process.env.DEPLOYER_PRIVATE_KEY}`],
+        }
     },
     etherscan: {
         apiKey: process.env.ETHERSCAN_KEY

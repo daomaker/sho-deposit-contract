@@ -64,14 +64,18 @@ describe("SHO", () => {
             signature3 = await web3.eth.sign(dataHash3, organizer.address);
         });
 
-        it("Changing deposit token, deposit receiver and organizer - only owner", async() => {
+        it("Changing deposit receiver, organizer and pausing - only owner", async() => {
             contract = contract.connect(winner1);
-            await expect(contract.setDepositReceiver(depositReceiver.address)).to.be.revertedWith("Ownable: caller is not the owner");
             await expect(contract.setShoOrganizer(organizer.address)).to.be.revertedWith("Ownable: caller is not the owner");
+            await expect(contract.setDepositReceiver(depositReceiver.address)).to.be.revertedWith("Ownable: caller is not the owner");
+            await expect(contract.pause()).to.be.revertedWith("Ownable: caller is not the owner");
+            await expect(contract.unpause()).to.be.revertedWith("Ownable: caller is not the owner");
 
             contract = contract.connect(owner);
             await contract.setShoOrganizer(organizer.address);
             await contract.setDepositReceiver(depositReceiver.address);
+            await contract.pause();
+            await contract.unpause();
         });
 
         it("Winner 1 tries to deposit - fails, not enough balance", async() => {
@@ -81,6 +85,24 @@ describe("SHO", () => {
                 
             depositToken = depositToken.connect(owner);
             await depositToken.transfer(winner1.address, parseUnits(2000, 6));
+        });
+
+        it("Winner 1 tries to deposit and unpause while paused", async() => {
+            contract = contract.connect(owner);
+            await contract.pause();
+
+            contract = contract.connect(winner1);
+            await expect(contract.deposit(signature1, shoId, depositToken.address, amount, deadline))
+                .to.be.revertedWith("Pausable: paused");
+            await expect(contract.unpause())
+                .to.be.revertedWith("Ownable: caller is not the owner");
+            
+            // Verify that the deposit did not take place
+            const depositReceiverBalanceAfter = await depositToken.balanceOf(depositReceiver.address);
+            expect(depositReceiverBalanceAfter).to.equal(0);
+
+            contract = contract.connect(owner);
+            await contract.unpause();
         });
 
         it("Winner 1 deposits - succeeds", async() => {

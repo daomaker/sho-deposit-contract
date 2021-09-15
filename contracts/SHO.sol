@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/security/Pausable.sol";
 
 /// @title Strong Holder Offering (SHO) contract used to collect funds from SHO lottery winners.
 /// @author DAO Maker
@@ -18,7 +19,7 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 ///    If all is correct, the funds are transferred from the winner to the fund receiver.
 /// @dev The contract is owned by an admin (intended to be a multisig wallet) who can change critical state variables.
 /// SHO Organizer is a off-chain role.
-contract SHO is Ownable {
+contract SHO is Ownable, Pausable {
     using ECDSA for bytes32;
     using SafeERC20 for IERC20;
 
@@ -70,10 +71,18 @@ contract SHO is Ownable {
         depositReceiver = _depositReceiver;
     }
 
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+
     /// @notice Verifies that the passed SHO data is signed correctly and that the signature comes from the SHO Organizer.
     /// If all checks out, the caller is marked in contract storage and funds are transferred from the caller to the predefined
     /// fund receiver.
-    /// @dev Callable by any account. Security is based on the passed signature.
+    /// @dev Callable by any account. Security is based on the passed signature. Pausable by the owner.
     /// @param signature Signature from the SHO Organizer. The message signed contains the winner address and the other parameters
     ///        passed in the call.
     /// @param shoId An opaque SHO identifier.
@@ -88,7 +97,7 @@ contract SHO is Ownable {
         IERC20 depositToken,
         uint amount,
         uint deadline
-    ) external {
+    ) external whenNotPaused {
         address winner = msg.sender;
 
         require(!depositsForSho[shoId][winner], "SHO: this wallet already made a deposit for this SHO");

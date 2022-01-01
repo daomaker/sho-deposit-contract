@@ -46,7 +46,8 @@ contract SHO is Ownable, Pausable {
         uint amount,
         uint deadline,
         address indexed depositReceiver,
-        address shoOrganizer
+        address shoOrganizer,
+        uint option
     );
 
     event RecoveredERC20(
@@ -96,7 +97,8 @@ contract SHO is Ownable, Pausable {
         string calldata shoId,
         IERC20 depositToken,
         uint amount,
-        uint deadline
+        uint deadline,
+        uint option
     ) external whenNotPaused {
         address winner = msg.sender;
 
@@ -109,7 +111,7 @@ contract SHO is Ownable, Pausable {
         depositsForSho[shoId][winner] = true;
         depositToken.safeTransferFrom(winner, depositReceiver, amount);
 
-        emit Deposited(winner, shoId, shoId, depositToken, amount, deadline, depositReceiver, shoOrganizer);
+        emit Deposited(winner, shoId, shoId, depositToken, amount, deadline, depositReceiver, shoOrganizer, option);
     }
 
     /// @notice Recovers any tokens unintentionally sent to this contract. This contract is not meant to hold any funds.

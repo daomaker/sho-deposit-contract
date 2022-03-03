@@ -27,6 +27,7 @@ contract SHO is Ownable, Pausable {
     address public depositReceiver;
 
     mapping(string => mapping(address => bool)) public depositsForSho;
+    mapping(string => uint) public depositedAmount;
 
     event ShoOrganizerChanged(
         address oldShoOrganizer,
@@ -91,19 +92,24 @@ contract SHO is Ownable, Pausable {
     /// @param amount Amount of tokens the winner is allowed to send. The unit is the base unit of the `depositToken`
     ///        (i.e. the smallest subdenomination of the token).
     /// @param deadline Time until the winners have to call this function (in Unix time).
+    /// @param maxTotalAmount The maximum amount that can be deposited for a given shoId.
     function deposit(
         bytes calldata signature,
         string calldata shoId,
         IERC20 depositToken,
         uint amount,
-        uint deadline
+        uint deadline,
+        uint maxTotalAmount
     ) external whenNotPaused {
         address winner = msg.sender;
 
         require(!depositsForSho[shoId][winner], "SHO: this wallet already made a deposit for this SHO");
         require(block.timestamp <= deadline, "SHO: the deadline for this SHO has passed");
 
-        bytes32 dataHash = keccak256(abi.encodePacked(winner, shoId, depositToken, amount, deadline, depositReceiver));
+        depositedAmount[shoId] += amount;
+        require(depositedAmount[shoId] <= maxTotalAmount, "SHO: the maximum amount of deposits have been reached");
+
+        bytes32 dataHash = keccak256(abi.encodePacked(winner, shoId, depositToken, amount, deadline, depositReceiver, maxTotalAmount));
         require(dataHash.toEthSignedMessageHash().recover(signature) == shoOrganizer, "SHO: signature verification failed");
 
         depositsForSho[shoId][winner] = true;

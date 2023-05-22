@@ -29,6 +29,13 @@ contract SHO is Ownable, Pausable {
     mapping(string => mapping(address => bool)) public depositsForSho;
     mapping(string => uint) public depositedAmount;
 
+    struct SwapData {
+        address router;
+        IERC20 tokenIn;
+        uint amountIn;
+        bytes data;
+    }
+
     event ShoOrganizerChanged(
         address oldShoOrganizer,
         address newShoOrganizer
@@ -102,21 +109,63 @@ contract SHO is Ownable, Pausable {
         uint deadline,
         uint maxTotalAmount
     ) external whenNotPaused {
-        address winner = msg.sender;
+        _beforeDeposit(signature, shoId, depositToken, amount, deadline, maxTotalAmount);
+        depositToken.safeTransferFrom(msg.sender, depositReceiver, amount);
+    }
 
-        require(!depositsForSho[shoId][winner], "SHO: this wallet already made a deposit for this SHO");
+    /**
+     * @notice Same as deposit function, but user deposits another token that is swapped into the deposit token.
+     */
+    function depositWithSwap(
+        bytes calldata signature,
+        string calldata shoId,
+        IERC20 depositToken,
+        uint amount,
+        uint deadline,
+        uint maxTotalAmount,
+        SwapData calldata swapData
+    ) external whenNotPaused {
+        _beforeDeposit(signature, shoId, depositToken, amount, deadline, maxTotalAmount);
+
+        // swap tokenIn to depositToken
+        swapData.tokenIn.safeTransferFrom(msg.sender, address(this), swapData.amountIn);
+        swapData.tokenIn.approve(swapData.router, swapData.amountIn);
+        (bool success, ) = swapData.router.call(swapData.data);
+        require(success, "SHO: swap failed");
+
+        uint amountOut = depositToken.balanceOf(address(this));
+        require(amountOut >= amount, "SHO: amount out");
+
+        // send tokens to the depositReceiver
+        depositToken.safeTransfer(depositReceiver, amount);
+
+        // send the remaining amount back to the sender
+        depositToken.safeTransfer(msg.sender, depositToken.balanceOf(address(this)));
+    }
+
+    /**
+     * @notice Performs all necessary checks before depositing. 
+     * Emits a {Deposit} event.
+     */
+    function _beforeDeposit(
+        bytes calldata signature,
+        string calldata shoId,
+        IERC20 depositToken,
+        uint amount,
+        uint deadline,
+        uint maxTotalAmount
+    ) internal {
+        require(!depositsForSho[shoId][msg.sender], "SHO: this wallet already made a deposit for this SHO");
         require(block.timestamp <= deadline, "SHO: the deadline for this SHO has passed");
 
         depositedAmount[shoId] += amount;
         require(depositedAmount[shoId] <= maxTotalAmount, "SHO: the maximum amount of deposits have been reached");
 
-        bytes32 dataHash = keccak256(abi.encodePacked(winner, shoId, depositToken, amount, deadline, depositReceiver, maxTotalAmount));
+        bytes32 dataHash = keccak256(abi.encodePacked(msg.sender, shoId, depositToken, amount, deadline, depositReceiver, maxTotalAmount));
         require(dataHash.toEthSignedMessageHash().recover(signature) == shoOrganizer, "SHO: signature verification failed");
 
-        depositsForSho[shoId][winner] = true;
-        depositToken.safeTransferFrom(winner, depositReceiver, amount);
-
-        emit Deposited(winner, shoId, shoId, depositToken, amount, deadline, depositReceiver, shoOrganizer, maxTotalAmount);
+        depositsForSho[shoId][msg.sender] = true;
+        emit Deposited(msg.sender, shoId, shoId, depositToken, amount, deadline, depositReceiver, shoOrganizer, maxTotalAmount);
     }
 
     /// @notice Recovers any tokens unintentionally sent to this contract. This contract is not meant to hold any funds.

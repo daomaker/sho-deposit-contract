@@ -6,13 +6,14 @@ const parseUnits = (value, decimals = 18) => {
 }
 
 describe("SHO", () => {
-    let contract, depositToken, depositReceiver, organizer, winner1, winner2, winner3, winner4, hacker;
+    let contract, depositToken, depositReceiver, organizer, winner1, winner2, winner3, winner4, hacker, router;
     let depositToken2, depositReceiver2, organizer2;
     let shoId = "ABC1234567";
 
     before(async() => {
         const SHO = await ethers.getContractFactory("SHO");
         const ERC20 = await ethers.getContractFactory('ERC20Mock');
+        const RouterMock = await ethers.getContractFactory('RouterMock');
 
         depositToken = await ERC20.deploy("MOCK token", "MOCK", 6, parseUnits(10000, 6));
         depositToken2 = await ERC20.deploy("MOCK token 2 ", "MOCK 2", 6, parseUnits(10000, 6));
@@ -23,8 +24,11 @@ describe("SHO", () => {
         contract = await SHO.deploy(organizer2.address, depositReceiver2.address);
         await contract.deployed();
 
+        router = await RouterMock.deploy();
+
         const initialBalance = parseUnits(2000, 6);
         await depositToken.transfer(winner2.address, initialBalance);
+        await depositToken2.transfer(winner1.address, initialBalance);
         await depositToken2.transfer(winner2.address, initialBalance);
         await depositToken.transfer(winner3.address, initialBalance);
         await depositToken.transfer(winner4.address, initialBalance);
@@ -34,6 +38,8 @@ describe("SHO", () => {
         await depositToken.approve(contract.address, initialBalance);
         depositToken = depositToken.connect(winner2);
         await depositToken.approve(contract.address, initialBalance);
+        depositToken2 = depositToken2.connect(winner1);
+        await depositToken2.approve(contract.address, initialBalance);
         depositToken2 = depositToken2.connect(winner2);
         await depositToken2.approve(contract.address, initialBalance);
         depositToken = depositToken.connect(winner3);
@@ -180,6 +186,36 @@ describe("SHO", () => {
             contract = contract.connect(winner3);
 
             await expect(contract.deposit(signature3, shoId, depositToken.address, amount, deadline, maxAmount)).to.be.revertedWith("SHO: the deadline for this SHO has passed");
+        });
+    });
+
+    describe("depositWithSwap", async() => {
+        let shoId = "xxxx1234"
+
+        it("deposits with swap", async() => {
+            const currentTime = await time.latest();
+            const amount = parseUnits(100, 6);
+            const deadline = Number(currentTime) + Number(time.duration.hours('12'));
+            const maxAmount = amount.mul(2);
+
+            const dataHash1 = web3.utils.soliditySha3(winner1.address, shoId, depositToken.address, amount.toString(), deadline, depositReceiver.address, maxAmount);
+            signature1 = await web3.eth.sign(dataHash1, organizer.address);
+
+            await depositToken.connect(owner).transfer(router.address, parseUnits(101, 6));
+            const swapData = await router.populateTransaction.swap(depositToken2.address, depositToken.address, parseUnits(101, 6), parseUnits(101, 6));
+
+            const swapDataObj = {
+                router: router.address,
+                tokenIn: depositToken2.address,
+                amountIn: parseUnits(101, 6),
+                data: swapData.data
+            }
+
+            const depositReceiverBalanceBefore = await depositToken.balanceOf(depositReceiver.address);
+            const winnerBalanceBefore = await depositToken.balanceOf(winner1.address);
+            await contract.connect(winner1).depositWithSwap(signature1, shoId, depositToken.address, amount, deadline, maxAmount, swapDataObj);
+            expect(await depositToken.balanceOf(depositReceiver.address)).to.equal(depositReceiverBalanceBefore.add(parseUnits(100, 6)));
+            expect(await depositToken.balanceOf(winner1.address)).to.equal(winnerBalanceBefore.add(parseUnits(1, 6)));
         });
     });
 });
